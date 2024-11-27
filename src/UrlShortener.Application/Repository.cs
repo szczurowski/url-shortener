@@ -7,6 +7,7 @@ public interface IRepository
 {
     Task<ShortUrl?> GetById(string id);
     Task Delete(ShortUrl entity);
+    Task Create(ShortUrl entity);
 }
 
 public class Repository(DatabaseContext context) : IRepository
@@ -21,6 +22,13 @@ public class Repository(DatabaseContext context) : IRepository
     public async Task Delete(ShortUrl entity)
     {
         context.ShortUrls.Remove(entity);
+        
+        await context.SaveChangesAsync();
+    }
+
+    public async Task Create(ShortUrl entity)
+    {
+        context.ShortUrls.Add(entity);
         
         await context.SaveChangesAsync();
     }
