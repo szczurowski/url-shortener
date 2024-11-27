@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Net;
 using Microsoft.AspNetCore.Mvc;
 using UrlShortener.Application;
 using UrlShortener.Domain.Contracts;
@@ -12,11 +13,15 @@ public class ShortUrlController(IShortUrlService service) : ControllerBase
     [HttpGet("{id:alpha}")]
     public async Task<IActionResult> GetById(string id)
     {
-        var url = await service.GetById(id);
+        var result = await service.GetById(id);
 
-        return string.IsNullOrEmpty(url) 
-            ? NotFound() 
-            : Redirect(url);
+        return result.Match(left => left switch
+            {
+                RetrieveErrors.Gone => StatusCode((int)HttpStatusCode.Gone),
+                RetrieveErrors.NotFound => NotFound(),
+                _ => throw new ArgumentOutOfRangeException(nameof(left), left, null)
+            },
+            right => (IActionResult) Ok(right));
     }
     
     [HttpPut("{id:alpha}")]

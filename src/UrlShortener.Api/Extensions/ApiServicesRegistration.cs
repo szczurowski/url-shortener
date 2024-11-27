@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Internal;
 using UrlShortener.Api.Services;
 using UrlShortener.Infrastructure;
 
@@ -7,7 +8,8 @@ public static class ApiServicesRegistration
 {
     public static IServiceCollection AddApiServices(this IServiceCollection services)
     {
-        services.AddSingleton<IApplicationConfiguration, ApplicationConfiguration>();
+        services.AddSingleton<ISystemClock, SystemClock>()
+            .AddSingleton<IApplicationConfiguration, ApplicationConfiguration>();
         
         return services;
     }
