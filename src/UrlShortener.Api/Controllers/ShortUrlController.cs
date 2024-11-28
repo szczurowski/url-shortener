@@ -16,46 +16,54 @@ public class ShortUrlController(IShortUrlService service) : ControllerBase
     {
         var result = await service.GetById(id);
 
-        return result.Match(left => left switch
-            {
-                RetrieveError.Gone => StatusCode((int)HttpStatusCode.Gone),
-                RetrieveError.NotFound => NotFound(),
-                _ => throw new ArgumentOutOfRangeException(nameof(left), left, null)
-            },
-            right => (IActionResult) Ok(right));
+        return result.Match(MapError, Ok);
     }
-    
+
     [HttpPut("{id:alpha}")]
     public async Task<IActionResult> CreateWithId(
         [FromRoute, Required] string id,
         [FromBody, Required] CreateRequest request)
     {
         var result = await service.Create(id, request);
-        
-        return result.Match(left => left switch
-            {
-                CreateError.AlreadyExists => Conflict(),
-                CreateError.AlreadyExistsInvalid => Conflict(),
-                _ => throw new ArgumentOutOfRangeException(nameof(left), left, null)
-            },
-            right => (IActionResult) Created(right.Id, right));
+
+        return result.Match(MapError, right => Created(right.Id, right));
     }
-    
+
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateRequest request)
     {
-        var url = await service.Create(request);
-        
-        return Created("url", url);
+        var result = await service.Create(request);
+
+        return result.Match(MapError, right => Created(right.Id, right));
     }
-    
+
     [HttpDelete("{id:alpha}")]
     public async Task<IActionResult> DeleteById(string id)
     {
-        var found = await service.DeleteById(id);
+        var result = await service.DeleteById(id);
 
-        return found 
-            ? NoContent() 
-            : NotFound();
+        return result.Match(MapError, _ => NoContent());
     }
+
+    private IActionResult MapError(RetrieveError error) => error switch
+    {
+        RetrieveError.Gone => StatusCode((int)HttpStatusCode.Gone),
+        RetrieveError.NotFound => NotFound(),
+        _ => throw new ArgumentOutOfRangeException(nameof(error), error, null)
+    };
+    
+    private IActionResult MapError(CreateError error) => error switch
+    {
+        CreateError.MissingUrl => BadRequest(),
+        CreateError.BadUrl => BadRequest(),
+        CreateError.AlreadyExists => Conflict(),
+        CreateError.AlreadyExistsInvalid => Conflict(),
+        _ => throw new ArgumentOutOfRangeException(nameof(error), error, null)
+    };
+    
+    private IActionResult MapError(DeleteError error) => error switch
+    {
+        DeleteError.NotFound => NotFound(),
+        _ => throw new ArgumentOutOfRangeException(nameof(error), error, null)
+    };
 }
