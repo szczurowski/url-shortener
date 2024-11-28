@@ -23,17 +23,21 @@ public class ShortUrlService(
 {
     public async Task<Either<RetrieveError, string>> GetById(string id)
     {
-        logger.LogInformation("GetById called");
-        
         var entity = await repository.GetById(id);
 
-        var result = entity == null 
-            ? Either<RetrieveError, string>.Left(RetrieveError.NotFound) 
-            : IsInvalid(entity)
-                ? Either<RetrieveError, string>.Left(RetrieveError.Gone)
-                : Either<RetrieveError, string>.Right(entity.Url);
+        if (entity == null)
+        {
+            logger.LogInformation("Entity not found, Id:{Id}", id);
+            return Prelude.Left(RetrieveError.NotFound);
+        }
 
-        return result;
+        if (IsInvalid(entity))
+        {
+            logger.LogInformation("Entity invalid, Id:{Id}", id);
+            return Prelude.Left(RetrieveError.Gone);
+        }
+        
+        return Prelude.Right(entity.Url);
     }
 
     public async Task<Either<DeleteError, Unit>> DeleteById(string id)
@@ -43,12 +47,12 @@ public class ShortUrlService(
         {
             logger.LogInformation("Entity not found, Id:{Id}", id);
 
-            return Either<DeleteError, Unit>.Left(DeleteError.NotFound);
+            return Prelude.Left(DeleteError.NotFound);
         }
         
         await repository.Delete(entity);
 
-        return Either<DeleteError, Unit>.Right(Unit.Default);
+        return Prelude.Right(Unit.Default);
     }
 
     public async Task<Either<CreateError, CreateResponse>> Create(string id, CreateRequest request)
@@ -56,7 +60,7 @@ public class ShortUrlService(
         var validationError = ValidateCreate(request);
         if (validationError != null)
         {
-            return Either<CreateError, CreateResponse>.Left(validationError.Value);
+            return Prelude.Left(validationError.Value);
         }
         
         var entity = await repository.GetById(id);
@@ -67,12 +71,12 @@ public class ShortUrlService(
                 ? CreateError.AlreadyExistsInvalid
                 : CreateError.AlreadyExists;
             
-            return Either<CreateError, CreateResponse>.Left(error);
+            return Prelude.Left(error);
         }
 
         var result = await CreateInternal(id, request);
 
-        return Either<CreateError, CreateResponse>.Right(result);
+        return Prelude.Right(result);
     }
 
     public async Task<Either<CreateError, CreateResponse>> Create(CreateRequest request)
@@ -80,22 +84,22 @@ public class ShortUrlService(
         var validationError = ValidateCreate(request);
         if (validationError != null)
         {
-            return Either<CreateError, CreateResponse>.Left(validationError.Value);
+            return Prelude.Left(validationError.Value);
         }
 
         var id = generator.Generate(request.Url!);
         var entity = await repository.GetById(id);
         if (entity != null)
         {
-            // TODO: come up with a way of handling collisions
+            // TODO: improvement: come up with a way of handling collisions
             logger.LogInformation("Generated Id:{Id} that matches existing entity", id);
             
-            return Either<CreateError, CreateResponse>.Left(CreateError.AlreadyExists);
+            return Prelude.Left(CreateError.AlreadyExists);
         }
         
         var result = await CreateInternal(id, request);
 
-        return Either<CreateError, CreateResponse>.Right(result);
+        return Prelude.Right(result);
     }
     
     private static CreateResponse Map(ShortUrl e) => 
@@ -141,7 +145,6 @@ public class ShortUrlService(
         }
         
         var createdMinutesAgo = systemClock.UtcNow.Subtract(entity.CreatedAt).TotalMinutes;
-        
         return createdMinutesAgo > entity.TtlMinutes.Value;
     }
 }

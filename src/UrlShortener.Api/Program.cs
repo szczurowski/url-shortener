@@ -1,12 +1,22 @@
+using Serilog;
 using UrlShortener.Api.Extensions;
 using UrlShortener.Api.Services;
 using UrlShortener.Application.Extensions;
 using UrlShortener.Infrastructure.Extensions;
 
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console()
+    .CreateLogger();
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer()
+builder.Services
+    .AddSerilog(config =>
+    {
+        config.WriteTo.Console();
+    })
+    .AddEndpointsApiExplorer()
     .AddSwaggerGen()
     .AddExceptionHandler<ExceptionHandler>()
     .AddApiServices()
@@ -14,22 +24,27 @@ builder.Services.AddEndpointsApiExplorer()
     .AddInfrastructureServices()
     .RunMigrations();
 
-var app = builder.Build();
-
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+try
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    var app = builder.Build();
+    if (app.Environment.IsDevelopment())
+    {
+        app.UseSwagger();
+        app.UseSwaggerUI();
+    }
+
+    app.UseExceptionHandler("/error");
+    app.UseHttpsRedirection();
+    app.UseAuthorization();
+    app.MapControllers();
+
+    app.Run();
 }
-app.UseExceptionHandler("/error");
-// app.UseExceptionHandler(new ExceptionHandlerOptions()
-// {
-//      
-// })
-
-app.UseHttpsRedirection();
-app.UseAuthorization();
-app.MapControllers();
-
-app.Run();
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Application terminated unexpectedly");
+}
+finally
+{
+    Log.CloseAndFlush();
+}
